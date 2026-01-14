@@ -26,8 +26,11 @@ class Settings(BaseSettings):
 
     # LangChain/OpenAI settings
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    llm_model: str = os.getenv("LLM_MODEL", "gpt-4")
+    llm_model: str = os.getenv("LLM_MODEL", "gpt-5.2")
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.0"))
+
+    # Mistral AI settings (for OCR)
+    mistral_api_key: str = os.getenv("MISTRAL_API_KEY", "")
 
 
 @lru_cache()

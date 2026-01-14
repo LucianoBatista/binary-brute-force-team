@@ -19,7 +19,17 @@ RUN apt-get -qq update && \
     libcurl4-openssl-dev \
     libssl-dev  \
     pkg-config \
-    procps && \
+    procps \
+    # Manim dependencies
+    libcairo2-dev \
+    libpango1.0-dev \
+    ffmpeg \
+    texlive-latex-base \
+    texlive-fonts-recommended \
+    texlive-latex-extra \
+    texlive-science \
+    dvipng \
+    cm-super && \
     rm -rf /var/lib/apt/lists/*
 
 # Install uv
