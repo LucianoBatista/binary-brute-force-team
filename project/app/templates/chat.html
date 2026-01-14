@@ -81,7 +81,8 @@
                           hx-post="/api/chat/upload-pdf"
                           hx-encoding="multipart/form-data"
                           hx-target="#upload-result"
-                          hx-indicator="#pdf-loading">
+                          hx-indicator="#pdf-loading"
+                          hx-timeout="300000">
 
                         <div class="upload-area" id="upload-area">
                             <input type="file"
@@ -131,48 +132,14 @@ function updateFileName(input) {
     }
 }
 
-// After successful PDF upload, create a new chat and start conversation
+// Clear file input after successful upload (redirect handled by server)
 document.body.addEventListener('htmx:afterRequest', function(event) {
     if (event.detail.target.id === 'upload-result' && event.detail.successful) {
-        const response = JSON.parse(event.detail.xhr.response);
-        if (response.status === 'success') {
-            // Show preview
-            const resultDiv = document.getElementById('upload-result');
-            resultDiv.innerHTML = `
-                <div class="upload-success">
-                    <p><strong>✓ PDF carregado com sucesso!</strong></p>
-                    <p><em>${response.filename}</em></p>
-                    <p>Texto extraído: ${response.text_length} caracteres</p>
-                    <details>
-                        <summary>Ver prévia do texto</summary>
-                        <p class="text-preview">${response.extracted_text_preview}</p>
-                    </details>
-                    <button class="btn-start-chat" onclick="startChatWithPDF('${response.file_id}', '${response.filename}')">
-                        Iniciar conversa com este PDF
-                    </button>
-                </div>
-            `;
-        }
+        const fileInput = document.getElementById('pdf-file');
+        const fileName = document.getElementById('file-name');
+        if (fileInput) fileInput.value = '';
+        if (fileName) fileName.textContent = '';
     }
 });
-
-// Start chat with uploaded PDF
-function startChatWithPDF(fileId, filename) {
-    // Create new chat
-    fetch('/api/chat/new', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title: `PDF: ${filename}`})
-    })
-    .then(response => response.json())
-    .then(data => {
-        // Redirect to chat page with file_id
-        window.location.href = `/chat/${data.chat_id}?file_id=${fileId}`;
-    })
-    .catch(error => {
-        console.error('Error creating chat:', error);
-        alert('Erro ao criar conversa. Tente novamente.');
-    });
-}
 </script>
 {% endblock %}
