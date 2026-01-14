@@ -1,0 +1,21 @@
+<!-- Chat content for HTMX swap (without full page) -->
+<div class="chat-header">
+    <h2>{{ chat_title or "Chat" }}</h2>
+</div>
+
+<!-- Messages area -->
+<div class="messages-container"
+     id="messages-container"
+     hx-get="/components/chat-messages/{{ chat_id }}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+    <div class="loading">Carregando mensagens...</div>
+</div>
+
+<!-- Input form -->
+<div class="chat-input-container"
+     id="chat-input-container"
+     hx-get="/components/chat-input?chat_id={{ chat_id }}{% if file_id %}&file_id={{ file_id }}{% endif %}"
+     hx-trigger="load"
+     hx-swap="innerHTML">
+</div>

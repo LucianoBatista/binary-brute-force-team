@@ -1,0 +1,45 @@
+{% if messages %}
+    {% for message in messages %}
+    <div class="message {{ message.role }}-message">
+        <div class="message-content">
+            {{ message.content }}
+        </div>
+
+        {% if message.media_url and message.media_type %}
+            <div class="message-media">
+                {% if message.media_type.startswith('image/') %}
+                    <img src="{{ message.media_url }}"
+                         alt="Imagem gerada"
+                         class="generated-image"
+                         loading="lazy">
+                    <div class="media-actions">
+                        <button class="btn-retry"
+                                hx-post="/api/chat/message"
+                                hx-vals='{"message": "Regenerar imagem", "chat_id": "{{ chat_id }}"}'
+                                hx-target="#messages-container"
+                                hx-swap="beforeend">
+                            🔄 Retry
+                        </button>
+                    </div>
+                {% elif message.media_type.startswith('video/') %}
+                    <video controls
+                           class="generated-video"
+                           preload="metadata">
+                        <source src="{{ message.media_url }}" type="{{ message.media_type }}">
+                        Seu navegador não suporta vídeos.
+                    </video>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <div class="message-timestamp">
+            {{ message.timestamp[:19] }}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="empty-messages">
+        <p>Nenhuma mensagem ainda</p>
+        <p class="hint">Digite uma mensagem abaixo para começar a conversa</p>
+    </div>
+{% endif %}

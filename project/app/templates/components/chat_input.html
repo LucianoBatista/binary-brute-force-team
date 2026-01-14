@@ -1,0 +1,55 @@
+<form class="chat-input-form"
+      hx-post="/api/chat/message"
+      hx-target="#messages-container"
+      hx-swap="beforeend"
+      hx-indicator="#message-loading"
+      hx-on="htmx:afterRequest: if(event.detail.successful) { document.getElementById('message-text').value = ''; }">
+
+    <input type="hidden" name="chat_id" value="{{ chat_id }}">
+    {% if file_id %}
+    <input type="hidden" name="file_id" value="{{ file_id }}">
+    {% endif %}
+
+    <div class="input-group">
+        <div class="user-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>
+                <path d="M6 21C6 17.134 8.686 14 12 14C15.314 14 18 17.134 18 21" stroke="currentColor" stroke-width="2"/>
+            </svg>
+        </div>
+
+        <textarea id="message-text"
+                  name="message"
+                  placeholder="Enviar sugestão/enviar edição..."
+                  rows="1"
+                  required
+                  onkeydown="handleEnter(event)"
+                  oninput="autoResize(this)"></textarea>
+
+        <button type="submit" class="btn-send" title="Enviar (Ctrl+Enter)">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 9L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
+    </div>
+
+    <div id="message-loading" class="loading htmx-indicator">
+        Processando mensagem...
+    </div>
+</form>
+
+<script>
+// Handle Enter key (submit on Ctrl+Enter, newline on just Enter)
+function handleEnter(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        event.target.closest('form').requestSubmit();
+    }
+}
+
+// Auto-resize textarea as user types
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
+}
+</script>

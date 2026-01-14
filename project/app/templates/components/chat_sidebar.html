@@ -1,0 +1,18 @@
+{% if chats %}
+    {% for chat in chats %}
+    <a href="/chat/{{ chat.chat_id }}"
+       class="chat-item {% if chat.chat_id == current_chat_id %}active{% endif %}"
+       hx-get="/components/chat-content/{{ chat.chat_id }}"
+       hx-target="#main-content"
+       hx-swap="innerHTML"
+       hx-push-url="/chat/{{ chat.chat_id }}">
+        <div class="chat-item-title">{{ chat.title }}</div>
+        <div class="chat-item-date">{{ chat.created_at[:10] }}</div>
+    </a>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <p>Nenhuma conversa ainda</p>
+        <p class="hint">Clique em "Novo chat" para começar</p>
+    </div>
+{% endif %}

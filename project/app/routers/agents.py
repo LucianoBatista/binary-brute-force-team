@@ -1,12 +1,12 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import HTMLResponse
+
+from project.app.agents.simple_agent import run_simple_agent
 from project.app.schemas.agent import (
     AgentRequest,
-    AgentResponse,
     AgentTaskResponse,
-    AgentTaskStatusResponse
+    AgentTaskStatusResponse,
 )
-from project.app.agents.simple_agent import run_simple_agent
 
 router = APIRouter(prefix="/api/agents", tags=["Agents"])
 
@@ -24,11 +24,18 @@ async def execute_agent(request: AgentRequest = Body(...)):
         # Run the agent
         result = await run_simple_agent(request.query)
 
+        # Handle dict response (new format with media support)
+        if isinstance(result, dict):
+            text = result.get("text", str(result))
+        else:
+            # Backward compatibility: handle string response
+            text = str(result)
+
         # Return HTML fragment for HTMX
         html = f"""
         <div class="result success">
             <h4>Agent Response:</h4>
-            <p>{result}</p>
+            <p>{text}</p>
         </div>
         """
         return html
@@ -55,15 +62,12 @@ async def execute_agent_async(request: AgentRequest):
     """
     try:
         from project.app.celery.tasks import run_agent_async
+
         task = run_agent_async.delay(request.query)
-        return AgentTaskResponse(
-            task_id=task.id,
-            status="processing"
-        )
+        return AgentTaskResponse(task_id=task.id, status="processing")
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to start async task: {str(e)}"
+            status_code=500, detail=f"Failed to start async task: {str(e)}"
         )
 
 
@@ -78,29 +82,19 @@ async def get_task_status(task_id: str):
         - status="failed" with error if task failed
     """
     try:
-        from project.app.celery.tasks import run_agent_async
         from celery.result import AsyncResult
 
         task = AsyncResult(task_id)
 
         if task.ready():
             if task.successful():
-                return AgentTaskStatusResponse(
-                    status="completed",
-                    result=task.result
-                )
+                return AgentTaskStatusResponse(status="completed", result=task.result)
             else:
-                return AgentTaskStatusResponse(
-                    status="failed",
-                    error=str(task.info)
-                )
+                return AgentTaskStatusResponse(status="failed", error=str(task.info))
         else:
-            return AgentTaskStatusResponse(
-                status="processing"
-            )
+            return AgentTaskStatusResponse(status="processing")
 
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to check task status: {str(e)}"
+            status_code=500, detail=f"Failed to check task status: {str(e)}"
         )

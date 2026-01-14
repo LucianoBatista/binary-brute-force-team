@@ -1,0 +1,61 @@
+<!-- Initial view for new chat (PDF upload + carousel) -->
+<div class="initial-view">
+    <!-- Header -->
+    <div class="welcome-header">
+        <div class="logo-icon">
+            <svg width="60" height="60" viewBox="0 0 60 60" fill="none">
+                <circle cx="15" cy="30" r="8" fill="#667eea"/>
+                <circle cx="30" cy="20" r="8" fill="#764ba2"/>
+                <circle cx="45" cy="30" r="8" fill="#667eea"/>
+                <line x1="15" y1="30" x2="30" y2="20" stroke="#667eea" stroke-width="3"/>
+                <line x1="30" y1="20" x2="45" y2="30" stroke="#667eea" stroke-width="3"/>
+            </svg>
+        </div>
+        <h1>ArcoSTEM - Seu gerador de imagens</h1>
+        <p class="subtitle">Auxiliando professores a criar as melhores imagens</p>
+    </div>
+
+    <!-- PDF Upload Area -->
+    <div class="pdf-upload-section">
+        <h3>Envie sua questão (PDF)</h3>
+        <form class="pdf-upload-form"
+              hx-post="/api/chat/upload-pdf"
+              hx-encoding="multipart/form-data"
+              hx-target="#upload-result"
+              hx-indicator="#pdf-loading">
+
+            <div class="upload-area" id="upload-area">
+                <input type="file"
+                       id="pdf-file"
+                       name="file"
+                       accept="application/pdf"
+                       required
+                       onchange="updateFileName(this)">
+                <label for="pdf-file" class="upload-label">
+                    <div class="upload-icon">📄</div>
+                    <div class="upload-text">
+                        <p><strong>Clique para selecionar</strong> ou arraste um arquivo PDF</p>
+                        <p class="upload-hint">Máximo 10MB</p>
+                    </div>
+                    <div id="file-name" class="file-name"></div>
+                </label>
+            </div>
+
+            <button type="submit" class="btn-upload">Enviar PDF</button>
+            <div id="pdf-loading" class="loading htmx-indicator">Processando PDF...</div>
+        </form>
+
+        <div id="upload-result" class="upload-result"></div>
+    </div>
+
+    <!-- Image Carousel -->
+    <div class="carousel-section">
+        <h3>Exemplos de imagens geradas</h3>
+        <div class="carousel-container"
+             hx-get="/components/chat-carousel"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="loading">Carregando exemplos...</div>
+        </div>
+    </div>
+</div>
