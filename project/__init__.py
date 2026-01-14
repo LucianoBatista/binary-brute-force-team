@@ -10,7 +10,11 @@ from project.app.celery.setup import create_celery
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Actions before starting the application
+    # Initialize Phoenix tracing before app starts
+    from project.app.observability import setup_phoenix_tracing
+
+    setup_phoenix_tracing()
+
     yield
     # Actions after stopping the application
 
