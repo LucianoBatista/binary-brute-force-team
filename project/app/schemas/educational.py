@@ -20,7 +20,7 @@ class EducationalState(TypedDict):
 
     # Input fields
     pdf_text: str
-    user_query: str
+    user_query: Optional[str]
 
     # Intention Detection Results
     curriculum_component: CurriculumComponent
@@ -37,6 +37,9 @@ class EducationalState(TypedDict):
     media_type: Optional[str]
     execution_status: ExecutionStatus
     error_message: Optional[str]
+
+    # Retry tracking
+    retry_count: int
 
 
 class EducationalWorkflowRequest(BaseModel):

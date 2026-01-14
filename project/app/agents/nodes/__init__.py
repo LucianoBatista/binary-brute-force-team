@@ -4,6 +4,7 @@ This package contains all the LangGraph node functions used in the
 educational content generation workflow.
 """
 
+from project.app.agents.nodes.code_fixer import code_fixer
 from project.app.agents.nodes.dynamic_generator import dynamic_generator
 from project.app.agents.nodes.improvement_agent import improvement_agent
 from project.app.agents.nodes.intention_detector import intention_detector
@@ -16,4 +17,5 @@ __all__ = [
     "dynamic_generator",
     "improvement_agent",
     "media_generator",
+    "code_fixer",
 ]
