@@ -25,6 +25,8 @@ dependencies = [
     # HTMX & Templating
     "jinja2~=3.1.0",
     "python-multipart~=0.0.6",
+    # PDF Processing
+    "pypdf2~=3.0.0",
     # Additional utilities
     "pydantic~=2.0",
     "python-dotenv~=1.0.0",
@@ -34,6 +36,8 @@ dependencies = [
     "matplotlib>=3.10.8",
     "weasyprint==52.1",
     "pymongo>=4.16.0",
+    "manim>=0.19.1",
+    "mistralai>=1.5.2",
 ]
 
 [tool.uv]
