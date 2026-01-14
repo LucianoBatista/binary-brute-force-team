@@ -20,6 +20,7 @@ class ChatService:
     SESSION_CHATS_KEY = "session:{session_id}:chats"
     CHAT_METADATA_KEY = "chat:{chat_id}:metadata"
     CHAT_MESSAGES_KEY = "chat:{chat_id}:messages"
+    CHAT_CONTEXT_KEY = "chat:{chat_id}:context"
     FILE_DATA_KEY = "file:{file_id}:data"
 
     @staticmethod
@@ -304,6 +305,69 @@ class ChatService:
         # Delete session key
         session_key = self.SESSION_CHATS_KEY.format(session_id=session_id)
         return redis_client.delete(session_key)
+
+    # Chat Context Operations (for PDF-based chats)
+
+    def store_chat_context(
+        self,
+        chat_id: str,
+        file_id: str,
+        manim_code: str,
+        pdf_text: str
+    ) -> bool:
+        """
+        Store context for PDF-based chats (for re-interactions).
+
+        Args:
+            chat_id: Chat ID
+            file_id: Associated file ID
+            manim_code: Generated Manim code
+            pdf_text: Extracted PDF text
+
+        Returns:
+            bool: True if successful
+        """
+        context_data = {
+            "file_id": file_id,
+            "manim_code": manim_code,
+            "pdf_text": pdf_text,
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+        context_key = self.CHAT_CONTEXT_KEY.format(chat_id=chat_id)
+        return redis_client.set_json(context_key, context_data, ttl=86400)  # 24h TTL
+
+    def get_chat_context(self, chat_id: str) -> Optional[Dict]:
+        """
+        Get context for PDF-based chat.
+
+        Args:
+            chat_id: Chat ID
+
+        Returns:
+            Dict: Context data or None if not found
+        """
+        context_key = self.CHAT_CONTEXT_KEY.format(chat_id=chat_id)
+        return redis_client.get_json(context_key)
+
+    def update_chat_context(self, chat_id: str, manim_code: str) -> bool:
+        """
+        Update Manim code in chat context.
+
+        Args:
+            chat_id: Chat ID
+            manim_code: New Manim code
+
+        Returns:
+            bool: True if successful
+        """
+        context = self.get_chat_context(chat_id)
+        if context:
+            context["manim_code"] = manim_code
+            context["updated_at"] = datetime.utcnow().isoformat()
+            context_key = self.CHAT_CONTEXT_KEY.format(chat_id=chat_id)
+            return redis_client.set_json(context_key, context, ttl=86400)
+        return False
 
 
 # Singleton instance for easy import
