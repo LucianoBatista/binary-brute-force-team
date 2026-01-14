@@ -6,14 +6,9 @@ This node analyzes the input content to detect:
 - Key educational concepts
 """
 
-from langchain_openai import ChatOpenAI
-
 from project.app.agents.prompt_loader import render_prompt
-from project.app.agents.utils import parse_json_response
+from project.app.agents.utils import create_reasoning_llm, parse_json_response
 from project.app.schemas.educational import EducationalState
-from project.config import Settings
-
-settings = Settings()
 
 
 async def intention_detector(state: EducationalState) -> EducationalState:
@@ -29,17 +24,23 @@ async def intention_detector(state: EducationalState) -> EducationalState:
         Updated state with curriculum_component, intention_type,
         detected_concepts, and analysis_summary
     """
-    llm = ChatOpenAI(
-        model=settings.llm_model,
-        temperature=0.0,  # Use low temperature for consistent classification
-        api_key=settings.openai_api_key,
-    )
+    # Use low reasoning effort for consistent classification
+    llm = create_reasoning_llm(reasoning_effort_override="low")
+
+    existing_code = state.get("manim_code")
+    if not existing_code:
+        existing_code = "# No existing code provided"
+
+    user_query = state.get("user_query")
+    if not user_query:
+        user_query = "There is no user query"
 
     # Render the prompt with the input data
     prompt = render_prompt(
         "intention_detector",
         pdf_text=state["pdf_text"],
-        user_query=state["user_query"],
+        user_query=user_query,
+        manim_code=existing_code,
     )
 
     # Get LLM response

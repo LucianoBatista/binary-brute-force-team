@@ -4,14 +4,13 @@ This node generates Manim code for dynamic animations that explain
 educational concepts step by step.
 """
 
-from langchain_openai import ChatOpenAI
-
 from project.app.agents.prompt_loader import render_prompt
-from project.app.agents.utils import extract_code_block, sanitize_manim_code
+from project.app.agents.utils import (
+    create_reasoning_llm,
+    extract_code_block,
+    sanitize_manim_code,
+)
 from project.app.schemas.educational import EducationalState
-from project.config import Settings
-
-settings = Settings()
 
 
 async def dynamic_generator(state: EducationalState) -> EducationalState:
@@ -26,14 +25,15 @@ async def dynamic_generator(state: EducationalState) -> EducationalState:
     Returns:
         Updated state with manim_code and code_explanation
     """
-    llm = ChatOpenAI(
-        model=settings.llm_model,
-        temperature=0.3,  # Slightly higher temperature for creative animation
-        api_key=settings.openai_api_key,
-    )
+    # Use medium reasoning effort for creative code generation
+    llm = create_reasoning_llm(reasoning_effort_override="medium")
 
     # Format the detected concepts as a string
-    concepts_str = ", ".join(state["detected_concepts"]) if state["detected_concepts"] else "general concepts"
+    concepts_str = (
+        ", ".join(state["detected_concepts"])
+        if state["detected_concepts"]
+        else "general concepts"
+    )
 
     # Render the prompt with context
     prompt = render_prompt(
@@ -42,7 +42,6 @@ async def dynamic_generator(state: EducationalState) -> EducationalState:
         detected_concepts=concepts_str,
         analysis_summary=state["analysis_summary"],
         pdf_text=state["pdf_text"],
-        user_query=state["user_query"],
     )
 
     # Get LLM response
