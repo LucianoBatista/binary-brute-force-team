@@ -16,7 +16,10 @@ services:
       MYSQL_ROOT_PASSWORD: root
       BROKER_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MISTRAL_API_KEY:
       GUNICORN_CONCURRENCY: 2
+      PHOENIX_ENABLED: "true"
+      PHOENIX_COLLECTOR_ENDPOINT: http://phoenix:4317
     depends_on:
       mysql:
         condition: service_started
@@ -73,7 +76,10 @@ services:
       MYSQL_PASSWORD: admin
       BROKER_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      MISTRAL_API_KEY:
       WORKER_CONCURRENCY: 4
+      PHOENIX_ENABLED: "true"
+      PHOENIX_COLLECTOR_ENDPOINT: http://phoenix:4317
     depends_on:
       web:
         condition: service_started
@@ -85,8 +91,22 @@ services:
       - ./:/usr/src/app
     restart: unless-stopped
 
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    container_name: bbf-phoenix
+    ports:
+      - "6006:6006"
+      - "4317:4317"
+    environment:
+      - PHOENIX_WORKING_DIR=/phoenix
+    volumes:
+      - phoenix-data:/phoenix
+    restart: unless-stopped
+
 volumes:
   mysql-data:
     driver: local
   redis-data:
+    driver: local
+  phoenix-data:
     driver: local

@@ -29,8 +29,22 @@ class Settings(BaseSettings):
     llm_model: str = os.getenv("LLM_MODEL", "gpt-5.2")
     llm_temperature: float = float(os.getenv("LLM_TEMPERATURE", "0.0"))
 
+    # Reasoning model settings (for o1, o3, gpt-5 models)
+    reasoning_enabled: bool = os.getenv("REASONING_ENABLED", "true").lower() == "true"
+    reasoning_effort: str = os.getenv("REASONING_EFFORT", "medium")  # low, medium, high
+    reasoning_summary: str = os.getenv("REASONING_SUMMARY", "auto")  # auto, concise, detailed
+
     # Mistral AI settings (for OCR)
     mistral_api_key: str = os.getenv("MISTRAL_API_KEY", "")
+
+    # Phoenix Observability
+    phoenix_enabled: bool = os.getenv("PHOENIX_ENABLED", "false").lower() == "true"
+    phoenix_collector_endpoint: str = os.getenv(
+        "PHOENIX_COLLECTOR_ENDPOINT", "http://localhost:4317"
+    )
+    phoenix_project_name: str = os.getenv(
+        "PHOENIX_PROJECT_NAME", "binary-brute-force-team"
+    )
 
 
 @lru_cache()
