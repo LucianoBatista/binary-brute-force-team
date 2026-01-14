@@ -1,17 +1,20 @@
 from typing import TypedDict
-from langgraph.graph import StateGraph, END
+
 from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
+
 from project.config import get_settings
 
 
 class AgentState(TypedDict):
     """State definition for the multi-agent workflow"""
+
     query: str
     analysis: str
     result: str
 
 
-async def run_simple_agent(query: str) -> str:
+async def run_simple_agent(query: str) -> dict:
     """
     Simple multi-agent workflow demonstrating LangGraph capabilities.
 
@@ -23,7 +26,12 @@ async def run_simple_agent(query: str) -> str:
         query: User's input query
 
     Returns:
-        Final result from the agent workflow
+        Dict with text response and optional media:
+        {
+            "text": str,           # Text response
+            "media_url": str,      # Optional URL to image/video
+            "media_type": str      # Optional MIME type
+        }
     """
     settings = get_settings()
 
@@ -31,7 +39,7 @@ async def run_simple_agent(query: str) -> str:
     llm = ChatOpenAI(
         model=settings.llm_model,
         temperature=settings.llm_temperature,
-        api_key=settings.openai_api_key
+        api_key=settings.openai_api_key,
     )
 
     # Define agent nodes
@@ -45,8 +53,8 @@ async def run_simple_agent(query: str) -> str:
         """Executor agent: Generates the final response"""
         prompt = f"""Based on the following analysis, provide a clear and educational response.
 
-Analysis: {state['analysis']}
-Original Query: {state['query']}
+Analysis: {state["analysis"]}
+Original Query: {state["query"]}
 
 Provide a detailed, accurate response suitable for STEM education."""
         response = llm.invoke(prompt)
@@ -70,4 +78,11 @@ Provide a detailed, accurate response suitable for STEM education."""
     graph = workflow.compile()
     final_state = await graph.ainvoke({"query": query, "analysis": "", "result": ""})
 
-    return final_state["result"]
+    # Return structured response with optional media
+    # TODO: Add image/video generation logic here
+    # For now, returning text-only response
+    return {
+        "text": final_state["result"],
+        "media_url": None,
+        "media_type": None
+    }
