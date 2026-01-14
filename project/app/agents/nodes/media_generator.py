@@ -1,6 +1,7 @@
 """Media Generator node for the educational workflow.
 
 This node executes Manim code and generates media output (video/image).
+It includes pre-execution validation to catch common errors before running Manim.
 """
 
 import os
@@ -10,7 +11,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from project.app.agents.utils import extract_scene_name
+from project.app.agents.utils import extract_scene_name, validate_manim_code
 from project.app.schemas.educational import EducationalState
 
 # Output directory for generated media
@@ -54,8 +55,12 @@ def find_generated_media(temp_dir: str, scene_name: str | None) -> Path | None:
 async def media_generator(state: EducationalState) -> EducationalState:
     """Execute Manim code and generate media.
 
-    This node takes the generated Manim code, executes it using subprocess,
-    and saves the output media to the static directory.
+    This node takes the generated Manim code, validates it, executes it
+    using subprocess, and saves the output media to the static directory.
+
+    The node includes pre-execution validation to catch common errors
+    before running Manim, providing detailed error messages for the
+    code fixer to use in retry attempts.
 
     Args:
         state: The current workflow state with manim_code
@@ -65,12 +70,29 @@ async def media_generator(state: EducationalState) -> EducationalState:
     """
     ensure_output_dir()
 
+    # Preserve retry count
+    retry_count = state.get("retry_count", 0)
+
     # Check if there's code to execute
     if not state.get("manim_code"):
         return {
             **state,
             "execution_status": "failed",
             "error_message": "No Manim code to execute",
+            "retry_count": retry_count,
+        }
+
+    # Validate code before execution
+    validation_result = validate_manim_code(state["manim_code"])
+    if not validation_result.is_valid:
+        error_msg = validation_result.error_message or "Code validation failed"
+        if validation_result.suggestions:
+            error_msg += f". Suggestions: {'; '.join(validation_result.suggestions)}"
+        return {
+            **state,
+            "execution_status": "failed",
+            "error_message": error_msg,
+            "retry_count": retry_count,
         }
 
     # Extract scene name from the code
@@ -80,6 +102,7 @@ async def media_generator(state: EducationalState) -> EducationalState:
             **state,
             "execution_status": "failed",
             "error_message": "Could not find Scene class in the code",
+            "retry_count": retry_count,
         }
 
     # Create a temporary directory for execution
@@ -109,10 +132,12 @@ async def media_generator(state: EducationalState) -> EducationalState:
 
         if result.returncode != 0:
             error_msg = result.stderr or result.stdout or "Unknown Manim error"
+            # Capture more of the error for better debugging
             return {
                 **state,
                 "execution_status": "failed",
-                "error_message": f"Manim execution failed: {error_msg[:500]}",
+                "error_message": f"Manim execution failed: {error_msg[:1000]}",
+                "retry_count": retry_count,
             }
 
         # Find the generated media file
@@ -123,6 +148,7 @@ async def media_generator(state: EducationalState) -> EducationalState:
                 **state,
                 "execution_status": "failed",
                 "error_message": "Manim ran successfully but no output file was found",
+                "retry_count": retry_count,
             }
 
         # Generate a unique filename and copy to output directory
@@ -145,6 +171,7 @@ async def media_generator(state: EducationalState) -> EducationalState:
             "media_type": media_type,
             "execution_status": "success",
             "error_message": None,
+            "retry_count": retry_count,
         }
 
     except subprocess.TimeoutExpired:
@@ -152,12 +179,14 @@ async def media_generator(state: EducationalState) -> EducationalState:
             **state,
             "execution_status": "failed",
             "error_message": "Manim execution timed out (120s limit)",
+            "retry_count": retry_count,
         }
     except Exception as e:
         return {
             **state,
             "execution_status": "failed",
             "error_message": f"Error during media generation: {str(e)}",
+            "retry_count": retry_count,
         }
     finally:
         # Clean up temporary directory

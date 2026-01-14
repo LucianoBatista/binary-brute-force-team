@@ -29,6 +29,7 @@ RUN apt-get -qq update && \
     texlive-latex-extra \
     texlive-science \
     dvipng \
+    dvisvgm \
     cm-super && \
     rm -rf /var/lib/apt/lists/*
 

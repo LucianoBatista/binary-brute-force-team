@@ -3,14 +3,13 @@
 This node improves existing Manim code based on user feedback.
 """
 
-from langchain_openai import ChatOpenAI
-
 from project.app.agents.prompt_loader import render_prompt
-from project.app.agents.utils import extract_code_block, sanitize_manim_code
+from project.app.agents.utils import (
+    create_reasoning_llm,
+    extract_code_block,
+    sanitize_manim_code,
+)
 from project.app.schemas.educational import EducationalState
-from project.config import Settings
-
-settings = Settings()
 
 
 async def improvement_agent(state: EducationalState) -> EducationalState:
@@ -25,11 +24,8 @@ async def improvement_agent(state: EducationalState) -> EducationalState:
     Returns:
         Updated state with improved manim_code and code_explanation
     """
-    llm = ChatOpenAI(
-        model=settings.llm_model,
-        temperature=0.2,  # Lower temperature for more precise improvements
-        api_key=settings.openai_api_key,
-    )
+    # Use medium reasoning effort for precise improvements
+    llm = create_reasoning_llm(reasoning_effort_override="medium")
 
     # Format the detected concepts as a string
     concepts_str = ", ".join(state["detected_concepts"]) if state["detected_concepts"] else "general concepts"

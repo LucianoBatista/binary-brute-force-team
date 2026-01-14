@@ -1,21 +1,19 @@
 """Chat API router for handling chat sessions, messages, and PDF uploads."""
 
-from fastapi import APIRouter, Body, UploadFile, File, HTTPException, Request, Form
-from fastapi.responses import HTMLResponse
 from typing import Optional
 
+from fastapi import APIRouter, Body, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse
+
+from project.app.agents.educational_workflow import run_educational_workflow
+from project.app.agents.simple_agent import run_simple_agent
 from project.app.schemas.chat import (
-    NewChatRequest,
-    ChatResponse,
-    ChatMessageRequest,
-    FileUploadResponse,
-    ChatStatusResponse,
     ChatListResponse,
-    AgentMultiMediaResponse,
     ChatMetadata,
+    ChatResponse,
+    NewChatRequest,
 )
 from project.app.services import chat_service, pdf_service
-from project.app.agents.simple_agent import run_simple_agent
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
 
@@ -38,10 +36,7 @@ def get_session_id(request: Request) -> str:
 
 
 @router.post("/new", response_model=ChatResponse)
-async def create_new_chat(
-    request: Request,
-    body: NewChatRequest = Body(...)
-):
+async def create_new_chat(request: Request, body: NewChatRequest = Body(...)):
     """
     Create a new chat session.
 
@@ -54,14 +49,10 @@ async def create_new_chat(
         session_id = get_session_id(request)
         chat_id = chat_service.create_chat(session_id, title=body.title)
 
-        return ChatResponse(
-            chat_id=chat_id,
-            status="completed"
-        )
+        return ChatResponse(chat_id=chat_id, status="completed")
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create new chat: {str(e)}"
+            status_code=500, detail=f"Failed to create new chat: {str(e)}"
         )
 
 
@@ -78,87 +69,114 @@ async def get_chat_list(request: Request):
         chats = chat_service.get_user_chats(session_id)
 
         return ChatListResponse(
-            session_id=session_id,
-            chats=[ChatMetadata(**chat) for chat in chats]
+            session_id=session_id, chats=[ChatMetadata(**chat) for chat in chats]
         )
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get chat list: {str(e)}"
+            status_code=500, detail=f"Failed to get chat list: {str(e)}"
         )
 
 
-@router.post("/upload-pdf", response_model=FileUploadResponse)
-async def upload_pdf_file(file: UploadFile = File(...)):
+@router.post("/upload-pdf", response_class=HTMLResponse)
+async def upload_pdf_file(request: Request, file: UploadFile = File(...)):
     """
-    Upload PDF file and extract text using Mistral OCR.
+    Upload PDF, extract text via OCR, run workflow, and create chat.
 
     Workflow:
-    1. Validate file (type, size)
-    2. Save to temporary storage
-    3. Extract text using Mistral OCR
-    4. Store file data in Redis
-    5. Return file_id for use in messages
+    1. Process PDF (validate + OCR)
+    2. Store PDF data in Redis
+    3. Run educational workflow to generate media
+    4. Create chat with detected concept as title
+    5. Store context for re-interactions
+    6. Add assistant message with media
+    7. Redirect to chat view
 
     Returns:
-        FileUploadResponse: Contains file_id and extracted text preview
+        HTMLResponse: JavaScript redirect to chat page
     """
     try:
-        # Process PDF
+        # Step 1: Process PDF (validate + OCR)
         file_id, extracted_text, file_path, error = await pdf_service.process_pdf(file)
 
         if error:
-            return FileUploadResponse(
-                file_id="",
-                filename=file.filename or "unknown",
-                extracted_text_preview="",
-                text_length=0,
-                status="error",
-                error=error
-            )
+            return f"""
+            <div class="result error">
+                <p><strong>Erro no upload:</strong> {error}</p>
+            </div>
+            """
 
-        # Store file data in Redis
+        # Step 2: Store PDF data in Redis
         chat_service.store_file_data(
             file_id=file_id,
             file_path=file_path,
             extracted_text=extracted_text,
-            original_filename=file.filename or "unknown.pdf"
+            original_filename=file.filename or "unknown.pdf",
         )
 
-        # Create preview (first 500 characters)
-        preview = extracted_text[:500] + ("..." if len(extracted_text) > 500 else "")
+        # Step 3: Run educational workflow (auto-generate)
+        result = await run_educational_workflow(pdf_text=extracted_text)
 
-        return FileUploadResponse(
+        # Step 4: Create chat with detected concept as title
+        session_id = get_session_id(request)
+        detected_concepts = result.get("detected_concepts", [])
+        chat_title = (
+            detected_concepts[0] if detected_concepts else file.filename or "documento"
+        )
+        chat_id = chat_service.create_chat(session_id, title=chat_title)
+
+        # Step 5: Store context for re-interactions
+        chat_service.store_chat_context(
+            chat_id=chat_id,
             file_id=file_id,
-            filename=file.filename or "unknown.pdf",
-            extracted_text_preview=preview,
-            text_length=len(extracted_text),
-            status="success",
-            error=None
+            manim_code=result.get("manim_code", ""),
+            pdf_text=extracted_text,
         )
+
+        # Step 6: Add assistant message with media
+        media_path = result.get("media_path", "")
+        media_type = result.get("media_type", "")
+        status = result.get("status", "failed")
+
+        if status == "success":
+            chat_service.add_message(
+                chat_id=chat_id,
+                role="assistant",
+                content="Visualização gerada com sucesso!",
+                media_url=media_path,
+                media_type=media_type,
+            )
+        else:
+            error_msg = result.get("error", "Erro na geração da visualização")
+            chat_service.add_message(
+                chat_id=chat_id, role="assistant", content=f"Erro: {error_msg}"
+            )
+
+        # Step 7: Redirect to chat view
+        return f"""
+        <script>
+            window.location.href = '/chat/{chat_id}';
+        </script>
+        """
 
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process PDF: {str(e)}"
-        )
+        return f"""
+        <div class="result error">
+            <p><strong>Erro:</strong> {str(e)}</p>
+        </div>
+        """
 
 
 @router.post("/message", response_class=HTMLResponse)
 async def send_message(
     message: str = Form(...),
     chat_id: str = Form(...),
-    file_id: Optional[str] = Form(None)
+    file_id: Optional[str] = Form(None),
 ):
     """
     Send a message in a chat and get agent response.
 
-    Workflow:
-    1. Add user message to chat
-    2. Retrieve PDF text if file_id provided
-    3. Send to multi-agent system
-    4. Add agent response to chat
-    5. Return HTML for HTMX display
+    Uses educational_workflow for PDF-based chats (re-interactions).
+    Uses simple_agent for regular chats.
 
     Returns:
         HTMLResponse: Message bubble HTML for HTMX swap
@@ -166,32 +184,48 @@ async def send_message(
     try:
         # Add user message
         user_message = chat_service.add_message(
-            chat_id=chat_id,
-            role="user",
-            content=message
+            chat_id=chat_id, role="user", content=message
         )
 
-        # Retrieve PDF text if file_id provided
-        query = message
-        if file_id:
-            file_data = chat_service.get_file_data(file_id)
-            if file_data:
-                pdf_text = file_data.get("extracted_text", "")
-                # Combine PDF text with user message
-                query = f"Context from PDF:\n{pdf_text}\n\nUser question: {message}"
+        # Get chat context (PDF text + existing Manim code)
+        context = chat_service.get_chat_context(chat_id)
 
-        # Call agent
-        agent_result = await run_simple_agent(query)
+        if context and context.get("pdf_text"):
+            # PDF-based chat: use educational workflow for re-interaction
+            result = await run_educational_workflow(
+                pdf_text=context.get("pdf_text", ""),
+                user_query=message,
+                existing_code=context.get("manim_code"),  # Enables improvement mode
+            )
 
-        # Parse agent result (could be string or dict with media)
-        if isinstance(agent_result, dict):
-            response_text = agent_result.get("text", str(agent_result))
-            media_url = agent_result.get("media_url")
-            media_type = agent_result.get("media_type")
+            status = result.get("status", "failed")
+
+            if status == "success":
+                response_text = "Visualização atualizada!"
+                media_url = result.get("media_path")
+                media_type = result.get("media_type")
+
+                # Update stored Manim code for next iteration
+                if result.get("manim_code"):
+                    chat_service.update_chat_context(
+                        chat_id=chat_id, manim_code=result.get("manim_code")
+                    )
+            else:
+                response_text = f"Erro: {result.get('error', 'Erro na geração')}"
+                media_url = None
+                media_type = None
         else:
-            response_text = str(agent_result)
-            media_url = None
-            media_type = None
+            # Regular chat: use simple agent
+            agent_result = await run_simple_agent(message)
+
+            if isinstance(agent_result, dict):
+                response_text = agent_result.get("text", str(agent_result))
+                media_url = agent_result.get("media_url")
+                media_type = agent_result.get("media_type")
+            else:
+                response_text = str(agent_result)
+                media_url = None
+                media_type = None
 
         # Add agent response to chat
         agent_message = chat_service.add_message(
@@ -199,52 +233,51 @@ async def send_message(
             role="assistant",
             content=response_text,
             media_url=media_url,
-            media_type=media_type
+            media_type=media_type,
         )
 
         # Build HTML response
         html_parts = [
             '<div class="message-group">',
-            # User message
-            f'<div class="message user-message">',
+            '<div class="message user-message">',
             f'  <div class="message-content">{message}</div>',
             f'  <div class="message-timestamp">{user_message["timestamp"]}</div>',
-            f'</div>',
-            # Agent message
-            f'<div class="message assistant-message">',
+            "</div>",
+            '<div class="message assistant-message">',
             f'  <div class="message-content">{response_text}</div>',
         ]
 
         # Add media if present
         if media_url and media_type:
-            if media_type.startswith("image/"):
+            if media_type.startswith("video/"):
                 html_parts.append(
                     f'  <div class="message-media">'
-                    f'    <img src="{media_url}" alt="Generated image" class="generated-image">'
-                    f'  </div>'
+                    f'    <video src="{media_url}" controls autoplay class="generated-video"></video>'
+                    f"  </div>"
                 )
-            elif media_type.startswith("video/"):
+            elif media_type.startswith("image/"):
                 html_parts.append(
                     f'  <div class="message-media">'
-                    f'    <video src="{media_url}" controls class="generated-video"></video>'
-                    f'  </div>'
+                    f'    <img src="{media_url}" alt="Generated" class="generated-image">'
+                    f"  </div>"
                 )
 
-        html_parts.extend([
-            f'  <div class="message-timestamp">{agent_message["timestamp"]}</div>',
-            f'</div>',
-            '</div>'
-        ])
+        html_parts.extend(
+            [
+                f'  <div class="message-timestamp">{agent_message["timestamp"]}</div>',
+                "</div>",
+                "</div>",
+            ]
+        )
 
         return "".join(html_parts)
 
     except Exception as e:
-        # Return error HTML
         error_html = f"""
         <div class="message-group error">
             <div class="message assistant-message error-message">
                 <div class="message-content">
-                    <strong>Error:</strong> {str(e)}
+                    <strong>Erro:</strong> {str(e)}
                 </div>
             </div>
         </div>
@@ -272,7 +305,4 @@ async def delete_chat(chat_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete chat: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to delete chat: {str(e)}")

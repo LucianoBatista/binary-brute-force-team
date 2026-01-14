@@ -1,9 +1,8 @@
 from typing import TypedDict
 
-from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
-from project.config import get_settings
+from project.app.agents.utils import create_reasoning_llm
 
 
 class AgentState(TypedDict):
@@ -33,14 +32,8 @@ async def run_simple_agent(query: str) -> dict:
             "media_type": str      # Optional MIME type
         }
     """
-    settings = get_settings()
-
-    # Initialize LLM
-    llm = ChatOpenAI(
-        model=settings.llm_model,
-        temperature=settings.llm_temperature,
-        api_key=settings.openai_api_key,
-    )
+    # Initialize LLM with reasoning support
+    llm = create_reasoning_llm()
 
     # Define agent nodes
     def analyzer(state: AgentState) -> AgentState:
