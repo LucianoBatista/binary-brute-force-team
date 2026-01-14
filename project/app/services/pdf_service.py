@@ -2,10 +2,17 @@
 
 import os
 import shutil
+import base64
+import logging
 from pathlib import Path
 from typing import Tuple, Optional
 from fastapi import UploadFile
 import uuid
+
+from mistralai import Mistral
+from project.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class PDFService:
@@ -102,8 +109,9 @@ class PDFService:
         """
         Extract text from PDF using Mistral OCR.
 
-        TODO: Implement Mistral OCR integration here.
-        The user mentioned they will integrate Mistral OCR SDK.
+        Falls back to PyPDF2 if:
+        - Mistral API key is not configured
+        - Mistral API call fails
 
         Args:
             file_path: Path to PDF file
@@ -111,17 +119,107 @@ class PDFService:
         Returns:
             Tuple[str, Optional[str]]: (extracted_text, error_message)
         """
-        # PLACEHOLDER: User will implement Mistral OCR integration
-        #
-        # Example integration pattern:
-        # try:
-        #     from mistral_ocr import extract_pdf_text  # Replace with actual SDK
-        #     text = extract_pdf_text(file_path)
-        #     return text, None
-        # except Exception as e:
-        #     return "", f"OCR extraction failed: {str(e)}"
+        settings = get_settings()
 
-        # Fallback: Use PyPDF2 for basic text extraction (no OCR)
+        # Check if Mistral API key is configured
+        if not settings.mistral_api_key:
+            logger.warning("Mistral API key not configured, falling back to PyPDF2")
+            return self._extract_text_pypdf2(file_path)
+
+        # Try Mistral OCR
+        try:
+            extracted_text = self._extract_text_with_mistral(
+                file_path,
+                settings.mistral_api_key
+            )
+
+            if not extracted_text.strip():
+                return "", "No text found in PDF after OCR processing."
+
+            return extracted_text, None
+
+        except Exception as e:
+            logger.error(f"Mistral OCR failed: {str(e)}, falling back to PyPDF2")
+            return self._extract_text_pypdf2(file_path)
+
+    def _extract_text_with_mistral(self, file_path: str, api_key: str) -> str:
+        """
+        Extract text using Mistral OCR API.
+
+        Args:
+            file_path: Path to PDF file
+            api_key: Mistral API key
+
+        Returns:
+            str: Combined markdown text from all pages
+
+        Raises:
+            Exception: If API call fails
+        """
+        # Initialize Mistral client
+        client = Mistral(api_key=api_key)
+
+        # Encode PDF to base64
+        base64_pdf = self._encode_pdf_base64(file_path)
+
+        # Call Mistral OCR API
+        ocr_response = client.ocr.process(
+            model="mistral-ocr-latest",
+            document={
+                "type": "document_url",
+                "document_url": f"data:application/pdf;base64,{base64_pdf}",
+            },
+            include_image_base64=False
+        )
+
+        # Combine text from all pages
+        return self._combine_pages_markdown(ocr_response)
+
+    def _encode_pdf_base64(self, file_path: str) -> str:
+        """
+        Encode PDF file to base64 string.
+
+        Args:
+            file_path: Path to PDF file
+
+        Returns:
+            str: Base64 encoded PDF content
+        """
+        with open(file_path, "rb") as pdf_file:
+            return base64.b64encode(pdf_file.read()).decode("utf-8")
+
+    def _combine_pages_markdown(self, ocr_response) -> str:
+        """
+        Combine markdown text from all pages of OCR response.
+
+        Args:
+            ocr_response: Response from Mistral OCR API
+
+        Returns:
+            str: Combined markdown text with page separators
+        """
+        if not ocr_response or not hasattr(ocr_response, 'pages'):
+            return ""
+
+        pages_text = []
+        for page in ocr_response.pages:
+            if hasattr(page, 'markdown') and page.markdown:
+                pages_text.append(page.markdown)
+
+        return "\n\n".join(pages_text)
+
+    def _extract_text_pypdf2(self, file_path: str) -> Tuple[str, Optional[str]]:
+        """
+        Extract text from PDF using PyPDF2 (fallback method).
+
+        Note: PyPDF2 extracts embedded text only, not OCR for images.
+
+        Args:
+            file_path: Path to PDF file
+
+        Returns:
+            Tuple[str, Optional[str]]: (extracted_text, error_message)
+        """
         try:
             import PyPDF2
             with open(file_path, "rb") as pdf_file:
@@ -135,7 +233,7 @@ class PDFService:
                 extracted_text = "\n".join(text_parts)
 
                 if not extracted_text.strip():
-                    return "", "No text found in PDF. File may contain only images."
+                    return "", "No text found in PDF. File may contain only images (OCR not available without Mistral API key)."
 
                 return extracted_text, None
 
