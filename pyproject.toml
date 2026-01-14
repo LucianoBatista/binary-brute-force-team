@@ -20,7 +20,7 @@ dependencies = [
     # LangChain/LangGraph
     "langchain>=1.2.3",
     "langgraph>=1.0.6",
-    "langchain-openai>=0.1.0",
+    "langchain-openai>=1.1.7",
     "langchain-community>=0.1.0",
     # HTMX & Templating
     "jinja2~=3.1.0",
@@ -38,6 +38,11 @@ dependencies = [
     "pymongo>=4.16.0",
     "manim>=0.19.1",
     "mistralai>=1.5.2",
+    # Phoenix/OpenTelemetry observability
+    "arize-phoenix>=4.0.0",
+    "openinference-instrumentation-langchain>=0.1.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp>=1.20.0",
 ]
 
 [tool.uv]
