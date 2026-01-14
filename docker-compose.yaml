@@ -1,0 +1,92 @@
+services:
+  web:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: binary-brute-force-team:latest
+    container_name: bbf-web
+    ports:
+      - "8010:8000"
+    environment:
+      POD_TYPE: web
+      MYSQL_HOST: mysql
+      MYSQL_DATABASE: bbf_db
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      MYSQL_ROOT_PASSWORD: root
+      BROKER_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GUNICORN_CONCURRENCY: 2
+    depends_on:
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+    volumes:
+      - ./:/usr/src/app
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    container_name: bbf-mysql
+    environment:
+      MYSQL_DATABASE: bbf_db
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "admin", "-padmin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: bbf-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: ./
+      dockerfile: Dockerfile
+    image: binary-brute-force-team:latest
+    container_name: bbf-worker
+    environment:
+      POD_TYPE: worker
+      MYSQL_HOST: mysql
+      MYSQL_DATABASE: bbf_db
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: admin
+      BROKER_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      WORKER_CONCURRENCY: 4
+    depends_on:
+      web:
+        condition: service_started
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+    volumes:
+      - ./:/usr/src/app
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
