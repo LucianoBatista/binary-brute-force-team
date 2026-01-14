@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h2>LangGraph Agent Dashboard</h2>
+
+    <!-- Agent Status Panel (auto-updates via HTMX every 5 seconds) -->
+    <div class="status-panel"
+         id="agent-status"
+         hx-get="/components/agent-status"
+         hx-trigger="load, every 5s"
+         hx-swap="innerHTML">
+        <div class="loading">Loading status...</div>
+    </div>
+
+    <!-- Agent Interaction Form -->
+    <div class="agent-form-section">
+        <h3>Execute Agent Task</h3>
+        <p class="description">Enter a query to run through the multi-agent system</p>
+
+        <form hx-post="/api/agents/execute"
+              hx-target="#result"
+              hx-swap="innerHTML"
+              hx-indicator="#loading">
+            <div class="form-group">
+                <label for="query">Query:</label>
+                <input
+                    type="text"
+                    id="query"
+                    name="query"
+                    placeholder="e.g., What is the Pythagorean theorem?"
+                    required
+                    autocomplete="off">
+            </div>
+            <button type="submit" class="btn-primary">Execute Agent</button>
+            <div id="loading" class="loading htmx-indicator">Processing...</div>
+        </form>
+
+        <div id="result" class="result-panel"></div>
+    </div>
+
+    <!-- Example Queries -->
+    <div class="examples-section">
+        <h3>Example Queries</h3>
+        <div class="example-buttons">
+            <button class="btn-example"
+                    hx-post="/api/agents/execute"
+                    hx-target="#result"
+                    hx-vals='{"query": "Explain how neural networks work"}'>
+                Neural Networks
+            </button>
+            <button class="btn-example"
+                    hx-post="/api/agents/execute"
+                    hx-target="#result"
+                    hx-vals='{"query": "What is quantum entanglement?"}'>
+                Quantum Physics
+            </button>
+            <button class="btn-example"
+                    hx-post="/api/agents/execute"
+                    hx-target="#result"
+                    hx-vals='{"query": "Derive the quadratic formula"}'>
+                Quadratic Formula
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
